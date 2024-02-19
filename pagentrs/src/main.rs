@@ -317,15 +317,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if cfg!(windows){
         windows_init();
+        let file_etw = EtwKernelFileTracker::new(fileio_callback, stream_handle);
+        std::thread::sleep(Duration::new(60, 0));//TODO
     }else{
-
+        todo!();
     }
-
-
-    let file_etw = EtwKernelFileTracker::new(fileio_callback, stream_handle);
     
-    std::thread::sleep(Duration::new(60, 0));
-
+    
+    
+    
     Ok(())
     //when the trace drops it automatically stops
 }
