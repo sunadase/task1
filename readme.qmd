@@ -1,6 +1,6 @@
 ---
 title: "File I/O tracing on Windows & Linux"
-format: html
+format: gfm
 ---
 
 #### Task

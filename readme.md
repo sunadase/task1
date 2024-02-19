@@ -1,0 +1,299 @@
+# File I/O tracing on Windows & Linux
+
+
+#### Task
+
+Bir agent yazın. Bu agent Windows ve Linux ortamlarda çalışmaya uygun
+olmalı. Agent çalıştırıldığında listen modda host’un dosya trafiğini
+monitor etmeye başlasın. Sisteme yeni bir dosya yazıldığında ya da
+mevcut dosya modifiye edildiğinde belirleyeceğiniz indikatörleri(hash,
+değişen byte verisi vs.) Elastic search’e kaydedin. Kibana’da kayıtlı
+veriler için bir dashboard tasarlayın.
+
+## Approaches
+
+### Windows
+
+#### ***Event Tracing for Windows (ETW)***
+
+Windows and other applications implement their ***Providers*** to enable
+log/tracing of events. Provider events are then
+enabled/registered/subscribed via ***Controller*** sessions.
+***Consumers*** select/subscribe to tracing sessions to receive
+real-time(or from a file) event feed.
+
+logman cli tool can be used to view active tracing sessions, list
+providers and capabilities etc.
+
+- Providers around File/Disk I/O
+
+  - Microsoft-Windows-Kernel-File
+  - Microsoft-Windows-Kernel-Disk
+  - Microsoft-Windows-Disk
+  - Microsoft-Windows-FileInfoMinifilter
+
+  KrabsETW is a modern C++ wrapper around the low-level ETW trace
+  consumption functions, by Microsoft.
+
+  !Missing Events
+
+  !Common Bypasses
+
+  Cons:
+
+  - Can’t trace bytes written/changes? Snapshot and diff changes?
+  - It’s known to be used by EDR’s and there are some easy evading
+    techniques that should be checked
+
+  sources:
+
+  - [MS / About Event
+    Tracing](https://learn.microsoft.com/en-us/windows/win32/etw/about-event-tracing)
+  - [microsoft/krabsETW provides a modern C++ wrapper around the
+    low-level ETW trace consumption
+    functions.](https://github.com/microsoft/krabsetw)
+  - [File IO Captures on Windows PIX are ETW
+    based](https://devblogs.microsoft.com/pix/file-io-captures/)
+  - [Preliminary notes on analyzing Disk and File I/O performance with
+    ETW traces - The Old New
+    Thing](https://devblogs.microsoft.com/oldnewthing/20201125-00/?p=104480)
+  - [Disk and File I/O performance with ETW traces: Why is System doing
+    so much stuff? - The Old New
+    Thing](https://devblogs.microsoft.com/oldnewthing/20201126-00/?p=104488)
+  - [Disk and File I/O performance with ETW traces: Miscellany - The Old
+    New
+    Thing](https://devblogs.microsoft.com/oldnewthing/20201127-00/?p=104492)
+  - [thefLink/Hunt-Weird-Syscalls - Using kernel based ETW providers to
+    identify&validate syscall sources by following the event calltrace -
+    catching unauthorized direct and indirect
+    syscalls](https://github.com/thefLink/Hunt-Weird-Syscalls)
+  - [Morph Your Malware! Talk by Sebastian Feldmann(thefLink). Mentions
+    various syscall tracking methods and
+    bypasses](https://www.youtube.com/watch?v=AucQUjJBJuw)
+  - [ETW
+    Central](https://randomascii.wordpress.com/2015/09/24/etw-central/)
+
+<!-- -->
+
+#### ***Windows API Hooking***
+
+Normal user space programs use Windows API calls to do os/kernel stuff.
+These API’s can be hooked with various methods to trace/control/inspect
+calls
+
+Cons:
+
+- It’s a well known and well studied method. With known options to Evade
+  it.
+
+Evasion:
+
+- Checking if the API’s are hooked:
+
+  by comparing in memory methods to dll file methods
+
+  by checking target methods first insturctions for jmps
+
+- doing direct syscalls instead of using API’s
+
+- indirect syscalls
+
+- Unhooking
+
+Methods:
+
+- Import Adress Table (IAT)
+
+- Export Adress Table (EAT)
+
+- Inline Hooking
+
+- Interrup Descriptor Table (IDT) (?)
+
+- MSR?
+
+- Nirvana?
+
+  [Detecting Manual Syscalls from User Mode via
+  Nirvana](https://winternl.com/detecting-manual-syscalls-from-user-mode/)
+
+sources:
+
+- [microsoft/Detours](https://github.com/microsoft/Detours/wiki)
+- [EasyHook](https://github.com/EasyHook/EasyHook)
+- [PolyHook 2.0 C++ 20, x86/x64 Hooking Libary
+  v2.0](https://github.com/stevemk14ebr/polyhook_2_0)
+- [Practical Comparison of the Most Popular API Hooking Libraries:
+  Microsoft Detours, EasyHook, Nektra Deviare, and
+  Mhook](https://www.apriorit.com/dev-blog/win-comparison-of-api-hooking-libraries)
+- [Similiar Tools to NtTrace (strace like for Windows) and
+  comparison](https://rogerorr.github.io/NtTrace/SimilarTools.html)
+- <https://github.com/apriorit/APIHookingLibraries>
+- [apriorit/Mhook Enhancements: 10x Speed Improvement and Other
+  Fixes](https://www.apriorit.com/dev-blog/469-mhook-enhancements)
+- [Cross Platform Hooking from
+  Python](https://github.com/vic4key/py-hooking) (?)
+- [jbremer.org/x86-api-hooking-demystified](http://jbremer.org/x86-api-hooking-demystified/)
+- [? ASLR + Sytem Wide Hooks](https://stackoverflow.com/a/19448275)
+- [Syscall Journey in the Windows Kernel - Alice
+  Climent-Pommeret](https://alice.climent-pommeret.red/posts/a-syscall-journey-in-the-windows-kernel/)
+
+#### ***File System Filter Driver***
+
+sources:
+
+- <https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/about-file-system-filter-drivers>
+- [microsoft/Windows-driver-samples/tree/main/filesys/miniFilter/minispy](https://github.com/microsoft/Windows-driver-samples/tree/main/filesys/miniFilter/minispy)
+  file system driver example monitoring filesys i/o activities
+
+#### ***ReadDirectoryChangesW / IOCPs***
+
+Most cross-platform file/directory watcher libraries use this method on
+Windows but I’m not sure if they’re meant for security
+
+sources:
+
+- [obtaining-directory-change-notifications](https://learn.microsoft.com/en-us/windows/win32/fileio/obtaining-directory-change-notifications)
+- [Understanding
+  ReadDirectoryChangesW](https://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw.html)
+- [using I/O completion ports(IOCPs) to get file system change
+  notifications on
+  windows](https://medium.com/tresorit-engineering/how-to-get-notifications-about-file-system-changes-on-windows-519dd8c4fb01)
+- [how to poll ReadDirectoryChangesW on
+  Windows](https://gist.github.com/nickav/a57009d4fcc3b527ed0f5c9cf30618f8)
+- [efsw is a C++ cross-platform file system watcher and
+  notifier.](https://github.com/SpartanJ/efsw/tree/master)
+- [notify-rs](https://github.com/notify-rs/notify)
+- [fsnotify](https://github.com/fsnotify/fsnotify?tab=readme-ov-file)
+
+#### ***Change Journal Records***
+
+sources:
+
+- [windows/win32/fileio/change-journals](https://learn.microsoft.com/en-us/windows/win32/fileio/change-journals)
+
+#### ***Periodically + on Change Hash&Snapshot Filesystem diff changes***
+
+:/
+
+#### ***eBPF for windows?***
+
+#### ***DTrace***
+
+? pipe to custom app to consume ? does it really provide more stuff +
+protection compared to etw ?
+
+sources:
+
+- [dtrace-on-windows](https://techcommunity.microsoft.com/t5/windows-os-platform-blog/dtrace-on-windows/ba-p/362902)
+
+#### ***Virtual Machine Introspection(VMI) / HyperDbg***
+
+- source:
+  - [HyperDbg - A hypervisor-assisted debugger designed for analyzing,
+    fuzzing and reversing](https://docs.hyperdbg.org/)
+
+### Linux
+
+#### ***inotify***
+
+#### ***eBPF***
+
+- Looks like Procmon for Linux use this method.
+
+  sources:
+
+  - [Sysinternals/ProcMon-for-Linux](https://github.com/Sysinternals/ProcMon-for-Linux/tree/main/src/tracer)
+
+### Implementation
+
+#### Windows
+
+If not using VMI or File System Filter Drivers like deep methods, the
+optimal way to cover the most seems to me that:
+
+ETW for File I/O + Weird Syscalls(like Hunt-Weird-Syscalls) with ETW
+Evasion checks
+
+\+
+
+user space API Hooking to trace changes (optional if the targets
+behaviour changes on hook detection)
+
+or
+
+Snapshotting and diffing files to trace changes
+
+rust agent
+
+I made a simple rust agent that creates an etw sesssion to consume and
+feed the events to an elastic agents’ tcp module. Since it’s currently
+synchronous its likely to clog.
+
+Elasticsearch agent
+
+I test windows functions locally. Elastic Agent defaults its target
+localhost to inside docker network ip, to be able to connect from the
+host windows instead, I need to route that ip to localhost for the
+windows network. Agent Output IP Address is found at Fleet \> Settings
+\> Outputs.
+
+    netsh int ip sh int #find loopback idx
+    netsh int ip add addr [idx] [targetip]/32 st=ac sk=tr
+    #st=ac -> store active, means it will disappear after boot
+    #sk=tr -> skipassource: Do not use the address as source address for any outgoing packet unless explicitly specified. The default value is false
+
+I couldn’t get Custom Windows Event Logs integration to work with
+Microsoft-Windows-Kernel-File/Analytic or
+Microsoft-Windows-FileInfoMinifilter/Operational. It might be because
+they are realtime ETW traces and Custom Windows Event Logs only support
+event logs? Currently they’re about to add ETW tracing functionality to
+Filebeats and eventually Kibana.
+<https://github.com/elastic/beats/pull/36914>
+<https://github.com/elastic/beats/pull/36915>
+<https://github.com/elastic/integrations/issues/8839>
+
+Since Filebeats functionality is merged recently i’ll try building from
+source. My other tool was using Windows API to create and listen to the
+ETW Trace then send events to Fleet Agent’s custom TCP port with a TCP
+connection. It’s limitations are that it’s all sync at the moment so
+when there are lots of events it seemed to clog.
+
+Current commit is in x-pack directory and it seems that it has different
+licensing for now.
+
+After building the new filebeat binary. We need to configure a
+filebeat.yml for the agents configuration. Buildtool also creates a
+filebeat.reference.yml for reference.
+
+Creating users/roles for granting access to the agent for modifying
+indexes/inputting new data;
+<https://www.elastic.co/guide/en/beats/filebeat/current/feature-roles.html>
+
+#### Current setup
+
+***Fleet agent with File Integrity Monitor monitors file changes***
+
+cons/missing:
+
+- seems to be missing reads
+- does not provide process id
+
+***ETW with filebeat on Windows monitors file access through
+Microsoft-Windows-Kernel-File Events***
+
+cons/missing:
+
+- FileName can be linked through FileKey =\> FileObject:FileName but i
+  couldn’t query/join docs. Example: Doc1{FileKey:“123”,
+  OtherEventData:{}..}, Doc2{FileObject:“123”, FileName:“C:\asd.txt”}
+  then Doc1 is also an event on asd.txt details:
+  <https://learn.microsoft.com/en-us/windows/win32/etw/fileio>
+
+- does not provide Process Name. Could be resolved with another module
+  tracking/snapshotting active pid and processnames to later map event
+  pids
+
+Dashboard
+
+![](images/paste-1.png)
