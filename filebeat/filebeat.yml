@@ -1,0 +1,50 @@
+filebeat.inputs:
+- type: etw
+  id: my-etw-id
+  enabled: true
+  provider.name: Microsoft-Windows-Kernel-File
+  session_name: FilebeatFileServer
+  trace_level: verbose
+  # Bitmask to filter analytical logs from DNS Server
+  # > logman query providers Microsoft-Windows-Kernel-File
+  # 0x0000000000000010  KERNEL_FILE_KEYWORD_FILENAME
+  # 0x0000000000000020  KERNEL_FILE_KEYWORD_FILEIO
+  # 0x0000000000000040  KERNEL_FILE_KEYWORD_OP_END
+  # 0x0000000000000080  KERNEL_FILE_KEYWORD_CREATE
+  # 0x0000000000000100  KERNEL_FILE_KEYWORD_READ
+  # 0x0000000000000200  KERNEL_FILE_KEYWORD_WRITE
+  # 0x0000000000000400  KERNEL_FILE_KEYWORD_DELETE_PATH
+  # 0x0000000000000800  KERNEL_FILE_KEYWORD_RENAME_SETLINK_PATH
+  # 0x0000000000001000  KERNEL_FILE_KEYWORD_CREATE_NEW_FILE
+  # 0x8000000000000000  Microsoft-Windows-Kernel-File/Analytic
+  match_any_keyword: 0x8000000000000000
+  match_all_keyword: 0
+
+#output.console:
+  #enabled: true
+  #pretty: true
+
+setup.template.name: "filebeat"
+setup.template.pattern: "filebeat"
+
+setup.kibana:
+  host: "https://localhost:5601"
+
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  index: "fb-fileio-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+  preset: balanced
+  protocol: "https"
+
+  #api_key: "id:api_key"
+  username: ""
+  password: ""
+
+  #pipeline: ""
+
+  ssl:
+    enabled: true
+    verification_mode: full
+    ca_trusted_fingerprint: ""
+    

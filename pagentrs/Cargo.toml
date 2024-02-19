@@ -1,0 +1,17 @@
+[package]
+name = "pagentrs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crochet = "0.2.3"
+elasticsearch = "8.5.0-alpha.1"
+env_logger = "0.11.1"
+ferrisetw = "1.1.0"
+serde = "1.0.196"
+serde_json = "1.0.113"
+tokio = { version = "1.36.0", features = ["tokio-macros", "macros", "rt-multi-thread"] }
+typed-json = "0.1.1"
+windows = {version = "0.52.0", features = ["Win32_System", "Win32_System_Diagnostics_Etw"]}
