@@ -267,10 +267,16 @@ fn fileio_callback(record: &EventRecord, schema_locator: &SchemaLocator, file_ob
                     let mut event = FileReadWrite::new(&parser);
                     let file_name;
                     {
-                        let map_guard = file_objects_record.lock().unwrap();
-                        file_name = map_guard.get(&event.file_key).unwrap_or(&nf).clone();
+                        match file_objects_record.lock() {
+                            Ok(map_guard) => {
+                                file_name = map_guard.get(&event.file_key).unwrap_or(&nf).clone();
+                                event.set_filename(&file_name);
+                            },
+                            Err(e) => {
+                                println!("Failed acquiring hashmap lock");
+                            }
+                        }
                     }
-                    event.set_filename(&file_name);
                     match stream.lock() {
                         Ok(mut tcp_stream) => {
                             tcp_stream.write_all(serde_json::to_string(&event).unwrap_or("Failed parsing FILEIO_RW to json".to_string()).as_bytes()).or_else(|e|{
